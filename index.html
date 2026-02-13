@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入口页面 - 长按触发爱心效果</title>
+    <style>
+        /* 引入优设标题黑字体 */
+        @font-face {
+            font-family: '优设标题黑';
+            src: url('assets/fonts/优设标题黑.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        :root {
+            --primary: #ff4081; /* 深粉红色（与主页面粒子心形颜色一致） */
+            --chaos: #ffb6c1;   /* 淡粉色 */
+            --glass: rgba(20, 20, 30, 0.6);
+        }
+
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            /* 与深夜陪伴页面相同的渐变背景 */
+            background: linear-gradient(to bottom, #0a0d1a 0%, #15182e 100%);
+            background-attachment: fixed;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            /* 与深夜陪伴页面相同的渐变背景 */
+            background: linear-gradient(to bottom, #0a0d1a 0%, #15182e 100%);
+            background-attachment: fixed; /* 固定背景，防止滚动时移动 */
+            min-height: 100vh; /* 确保背景覆盖整个视口 */
+            height: 100%;
+            font-family: '优设标题黑', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+
+        /* 状态提示 UI */
+        #ui-layer {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #instruction {
+            margin-top: 10px;
+            font-size: 18px; /* 增大桌面端字号 */
+            color: #aaa;
+            background: rgba(0,0,0,0.5);
+            display: inline-block;
+            padding: 10px 24px; /* 增大内边距 */
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* 移动端响应式调整 */
+        @media (max-width: 768px) {
+            #instruction {
+                font-size: 16px; /* 增大移动端字号，从12px改为16px */
+                padding: 10px 20px; /* 增大移动端内边距 */
+                margin-top: 8px;
+            }
+
+            .heart-detected-msg {
+                font-size: 28px;
+            }
+        }
+
+        /* 爱心检测反馈 */
+        .heart-detected-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 20px var(--primary);
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .heart-detected-msg.show {
+            opacity: 1;
+            /* 先用 pulse 做 2 次跳动（1s * 2），再衔接一次淡出动画 */
+            animation:
+                pulse 1s ease-in-out 0s 2,
+                fadeOutUp 0.5s ease-in-out 2s 1 forwards;
+        }
+
+        /* LOVE DETECTED 文本弹跳 */
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        /* LOVE DETECTED 文本淡出离场动画 */
+        @keyframes fadeOutUp {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -65%) scale(0.9);
+            }
+        }
+
+        /* 页面淡出动画 */
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+
+        .fade-out {
+            animation: fadeOut 1s ease-in-out forwards;
+        }
+
+        /* ==== 浪漫装饰层：柔光晕 + 漂浮小爱心 ==== */
+        #romantic-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2; /* 在粒子之上、UI 之下 */
+            overflow: hidden;
+        }
+
+        /* 中央深蓝色柔光晕，与背景色匹配 */
+        #romantic-overlay::before {
+            content: "";
+            position: absolute;
+            /* 缩小覆盖范围 */
+            inset: -25%;
+            background:
+                radial-gradient(circle at center,
+                    /* 深蓝色渐变，颜色更淡 */
+                    rgba(21, 24, 46, 0.18) 0%,
+                    rgba(15, 18, 35, 0.10) 30%,
+                    transparent 72%);
+            mix-blend-mode: screen;
+            opacity: 0.7;
+        }
+
+        .floating-hearts {
+            position: absolute;
+            inset: 0;
+        }
+
+        /* 默认不播放动画，等待进入 Cupid 模式时再激活 */
+        .floating-hearts span {
+            position: absolute;
+            bottom: -10%;
+            font-size: 16px;
+            color: rgba(255, 64, 129, 0.9); /* 深粉红色（与主页面粒子心形颜色一致） */
+            text-shadow: 0 0 10px rgba(255, 64, 129, 0.9); /* 深粉红色阴影 */
+            opacity: 0;
+        }
+
+        /* 只有在 active 状态下才开始缓慢上升动画 */
+        .floating-hearts.active span {
+            animation: floatUp 9s linear infinite;
+        }
+
+        .floating-hearts span:nth-child(1)  { left: 8%;  animation-delay: 0s;   animation-duration: 10s; font-size: 18px; }
+        .floating-hearts span:nth-child(2)  { left: 20%; animation-delay: 3s;   animation-duration: 11s; font-size: 14px; }
+        .floating-hearts span:nth-child(3)  { left: 32%; animation-delay: 1.5s; animation-duration: 9s;  font-size: 20px; }
+        .floating-hearts span:nth-child(4)  { left: 44%; animation-delay: 4s;   animation-duration: 10s; font-size: 15px; }
+        .floating-hearts span:nth-child(5)  { left: 56%; animation-delay: 2.2s; animation-duration: 12s; font-size: 17px; }
+        .floating-hearts span:nth-child(6)  { left: 68%; animation-delay: 5.5s; animation-duration: 9.5s; font-size: 16px; }
+        .floating-hearts span:nth-child(7)  { left: 78%; animation-delay: 1s;  animation-duration: 11.5s; font-size: 19px; }
+        .floating-hearts span:nth-child(8)  { left: 88%; animation-delay: 6.5s; animation-duration: 10s;  font-size: 15px; }
+        .floating-hearts span:nth-child(9)  { left: 26%; animation-delay: 7.2s; animation-duration: 12s;  font-size: 13px; }
+        .floating-hearts span:nth-child(10) { left: 62%; animation-delay: 8s;  animation-duration: 9s;   font-size: 21px; }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(0.9);
+                opacity: 0;
+            }
+            15% {
+                opacity: 0.9;
+            }
+            60% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateY(-120vh) scale(1.2);
+                opacity: 0;
+            }
+        }
+
+
+    </style>
+    
+    <!-- 依赖库 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+<body>
+
+    <!-- 界面层 -->
+    <div id="ui-layer">
+        <div id="instruction">长按屏幕任意位置触发爱心效果 💖</div>
+    </div>
+
+    <!-- 中心反馈文字 -->
+    <div id="heart-msg" class="heart-detected-msg">Exhaust fully love you</div>
+
+	    <!-- 3D 容器 -->
+	    <div id="canvas-container"></div>
+
+	    <!-- 浪漫装饰层：柔光晕 + 缓慢飘动的小爱心 -->
+	    <div id="romantic-overlay">
+	        <div class="floating-hearts">
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	            <span>♥</span>
+	        </div>
+	    </div>
+
+	    <!-- 音频资源 (使用免费的浪漫风格循环音乐) -->
+	    <audio id="bgm" loop>
+	        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=romantic-piano-111583.mp3" type="audio/mpeg">
+	    </audio>
+
+<script>
+// --- 配置 ---
+const CONFIG = {
+    particleCount: 3000,
+    chaosSpeed: 0.2,     // 混乱模式下的飞行速度
+    formSpeed: 0.15,      // 聚合成形的速度
+    colors: {
+        chaos: new THREE.Color(0xffb6c1), // 初始淡粉色
+        love: new THREE.Color(0xff4081)   // 爱心颜色：深粉红色（与主页面粒子心形颜色一致）
+    }
+};
+
+// --- 全局变量 ---
+let scene, camera, renderer, particles;
+let positions, targetPositions, velocities;
+let scaleFactor = 1.0; // 根据屏幕尺寸的缩放因子
+
+// 长按交互 & 模式状态
+let isHeartGesture = false;      // 是否检测到长按触发
+let isCupidActive = false;       // 粒子是否已经开始汇聚成爱心+箭矢
+let gestureEnterTime = 0;        // 检测到长按的时间（使用 time 计时）
+let heartAppearTime = 0;         // 爱心真正成形（粒子进入 Cupid 形态）的时间
+let hasStartedAudioForCupid = false; // 当前这一轮爱心是否已经启动过音频
+let wasCupidActive = false;      // 上一帧的 Cupid 状态，用来判断刚刚进入爱心形态
+let isPressHeld = false;         // 是否正在按住
+let pressStartTime = 0;          // 按住开始的时间戳
+let longPressTimer = null;       // 长按定时器
+const LONG_PRESS_DURATION = 0.5; // 长按触发时长（秒）
+let hasNavigated = false;        // 是否已经跳转（防止重复跳转）
+const NAVIGATION_DELAY = 3.0;    // 爱心形成后延迟跳转的时间（秒）
+
+// 文案与爱心出现节奏：
+// LOVE DETECTED 文案跳动 2 次（约 2s）+ 消失动画（约 0.5s）后，再开始爱心聚合
+const LOVE_PULSE_DURATION = 2.0;    // 文字跳动总时长（2 次 pulse）
+const LOVE_FADE_DURATION  = 0.5;    // 文字消失动画时长
+const CUPID_DELAY         = LOVE_PULSE_DURATION + LOVE_FADE_DURATION; // ≈2.5s 后开始聚合
+
+let mode = 'chaos'; // 预留：'chaos' or 'love'（当前未直接使用）
+let time = 0;
+let audio;      // 背景循环 BGM
+
+	// --- 形状生成器 ---
+	const ShapeGenerator = {
+	    // 混乱状态：随机分布在屏幕空间
+	    chaos: () => {
+	        // 根据屏幕尺寸动态调整分布范围
+	        const widthRange = 60 * scaleFactor;
+	        const heightRange = 40 * scaleFactor;
+	        const depthRange = 40 * scaleFactor;
+	        return {
+	            x: (Math.random() - 0.5) * widthRange,
+	            y: (Math.random() - 0.5) * heightRange,
+	            z: (Math.random() - 0.5) * depthRange
+	        };
+	    },
+	    // 丘比特之箭：爱心 + 箭矢
+	    cupid: (index, total) => {
+	        // 前 65% 的粒子组成爱心
+	        if (index < total * 0.65) {
+	            // 参数化爱心
+	            let t = Math.random() * Math.PI * 2;
+	            // 增加一点厚度
+	            let r = 0.5 + Math.random() * 0.5;
+
+	            let x = 16 * Math.pow(Math.sin(t), 3);
+	            let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+	            let z = (Math.random() - 0.5) * 5;
+
+	            // 根据屏幕尺寸动态调整心形缩放
+	            const heartScale = 0.75 * scaleFactor;
+	            return { x: x * heartScale, y: y * heartScale + 3 * scaleFactor, z: z };
+	        }
+	        // 后 35% 的粒子组成箭
+	        else {
+	            const arrowRatio = (index - total * 0.65) / (total * 0.35); // 0 到 1
+
+	        	// 箭基于水平方向逆时针旋转约 15°，从左下略微上扬穿过爱心
+	        	// 以 (0, 1.5) 为大致中心做旋转，保证穿心效果
+	        	// 根据屏幕尺寸动态调整箭的位置和大小
+	        	const start = {x: -29.0 * scaleFactor, y: -6.3 * scaleFactor, z: 0};
+	        	const end   = {x:  29.0 * scaleFactor, y:  9.3 * scaleFactor, z: 0};
+
+	            // 构建沿箭身和垂直方向的局部坐标系
+	            const dx = end.x - start.x;
+	            const dy = end.y - start.y;
+	            const len = Math.sqrt(dx * dx + dy * dy);
+	            const dir = { x: dx / len, y: dy / len };              // 沿箭身方向的单位向量
+	            const perp = { x: -dir.y, y: dir.x };                  // 在屏幕平面内、垂直于箭身
+
+	            // 统一的参数（根据屏幕尺寸缩放）
+	            const headLength = 10 * scaleFactor;   // 箭头实际长度（世界坐标）
+	            const headWidth  = 6 * scaleFactor;    // 箭头底部总宽度
+	            const featherLength = 7 * scaleFactor; // 箭尾总长度
+	            const featherWidth  = 4 * scaleFactor; // 箭尾最大宽度
+
+	            let x, y, z;
+
+	            // ===== 箭尾：规则楔形尾翼 (0 - 0.25) =====
+	            if (arrowRatio < 0.25) {
+	                // s：沿箭身方向的距离（从箭尾向后为负值）
+	                const s = -Math.random() * featherLength; // [ -featherLength , 0 ]
+	                const absS = -s;
+	                // 尾翼宽度随离开箭身越远越大，形成楔形
+	                const maxHalfWidth = featherWidth * (0.3 + 0.7 * (absS / featherLength));
+	                const tOffset = (Math.random() - 0.5) * 2 * maxHalfWidth; // [-maxHalfWidth, maxHalfWidth]
+
+	                x = start.x + dir.x * s + perp.x * tOffset;
+	                y = start.y + dir.y * s + perp.y * tOffset;
+	                z = (Math.random() - 0.5) * 1.0;
+	            }
+	            // ===== 箭杆：细直线 (0.25 - 0.75) =====
+	            else if (arrowRatio < 0.75) {
+	                // s：沿箭身的距离（从 start 开始，0 在箭尾，与箭尾/箭头略微重叠，避免出现缝隙）
+	                const baseHeadS   = len - headLength; // 箭头底边所在的位置
+	                const shaftStartS = -0.3;            // 略微进入羽毛区域
+	                const shaftEndS   = baseHeadS + 0.3; // 略微进入箭头区域
+	                const s = shaftStartS + Math.random() * (shaftEndS - shaftStartS);
+
+	                const radius = 0.4;                  // 箭杆粗细
+	                const tOffset = (Math.random() - 0.5) * 2 * radius;
+
+	                x = start.x + dir.x * s + perp.x * tOffset;
+	                y = start.y + dir.y * s + perp.y * tOffset;
+	                z = (Math.random() - 0.5) * 0.8;
+	            }
+	            // ===== 箭头：标准等腰三角形 (0.75 - 1.0) =====
+	            else {
+	                // 从箭头尖端向后量 sHead，0 在尖端，headLength 在底边
+	                const sHead = Math.random() * headLength; // [0, headLength]
+	                // 在该截面上的允许半宽度：越靠近底边越宽，尖端为 0
+	                const halfWidth = (sHead / headLength) * (headWidth / 2);
+	                const tOffset = (Math.random() - 0.5) * 2 * halfWidth;
+
+	                // 尖端在 end 处，向后沿 dir 方向减去 sHead
+	                x = end.x - dir.x * sHead + perp.x * tOffset;
+	                y = end.y - dir.y * sHead + perp.y * tOffset;
+	                z = (Math.random() - 0.5) * 1.2;
+	            }
+
+	            // 轻微抖动，保持形状清晰
+	            x += (Math.random() - 0.5) * 0.05;
+	            y += (Math.random() - 0.5) * 0.05;
+	            z += (Math.random() - 0.5) * 0.05;
+
+	            return { x, y, z };
+	        }
+	    }
+	};
+
+/**
+ * 计算响应式缩放因子
+ * 根据屏幕尺寸调整，确保移动端也能完整显示
+ */
+function calculateScaleFactor() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const aspect = width / height;
+    
+    // 移动端检测（宽度小于768px或高宽比大于1.5认为是竖屏移动端）
+    const isMobile = width < 768 || (height / width > 1.5);
+    
+    if (isMobile) {
+        // 移动端：根据屏幕宽度调整缩放，确保爱心完整显示
+        // 竖屏时使用更小的缩放因子
+        if (aspect < 1) {
+            // 竖屏
+            scaleFactor = Math.min(width / 400, height / 600) * 0.6;
+        } else {
+            // 横屏
+            scaleFactor = Math.min(width / 600, height / 400) * 0.7;
+        }
+    } else {
+        // 桌面端：保持原始大小
+        scaleFactor = 1.0;
+    }
+    
+    // 限制缩放范围，避免过大或过小
+    scaleFactor = Math.max(0.4, Math.min(1.2, scaleFactor));
+    
+    return scaleFactor;
+}
+
+// --- Three.js 初始化 ---
+function initThree() {
+    const container = document.getElementById('canvas-container');
+    scene = new THREE.Scene();
+    // 增加一点环境雾，增强深度感，颜色与背景渐变匹配
+    scene.fog = new THREE.FogExp2(0x15182e, 0.02);
+
+    // 计算响应式缩放因子
+    calculateScaleFactor();
+    
+    const aspect = window.innerWidth / window.innerHeight;
+    camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    
+    // 根据屏幕尺寸动态调整相机位置
+    // 移动端需要更远的距离才能看到完整内容
+    const isMobile = window.innerWidth < 768 || (window.innerHeight / window.innerWidth > 1.5);
+    if (isMobile) {
+        // 移动端：根据缩放因子调整相机距离
+        camera.position.z = 35 / scaleFactor;
+    } else {
+        camera.position.z = 35;
+    }
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    // 创建粒子
+    const geometry = new THREE.BufferGeometry();
+    positions = new Float32Array(CONFIG.particleCount * 3);
+    targetPositions = new Float32Array(CONFIG.particleCount * 3);
+    velocities = [];
+
+    // 初始化：所有粒子随机分布（Chaos模式）
+    // 注意：这里先初始化位置，Cupid形状会在窗口大小改变时重新计算
+    for(let i = 0; i < CONFIG.particleCount; i++) {
+        const p = ShapeGenerator.chaos();
+        positions[i*3] = p.x;
+        positions[i*3+1] = p.y;
+        positions[i*3+2] = p.z;
+        
+        // 赋予初始随机速度
+        velocities.push({
+            x: (Math.random() - 0.5) * 0.1,
+            y: (Math.random() - 0.5) * 0.1,
+            z: (Math.random() - 0.5) * 0.1
+        });
+    }
+    
+    // 预计算 Cupid 形状的目标位置
+    updateCupidPositions();
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const material = new THREE.PointsMaterial({
+        size: 0.2,
+        color: CONFIG.colors.chaos,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+
+    window.addEventListener('resize', handleResize);
+}
+
+/**
+ * 更新 Cupid 形状的目标位置
+ * 当窗口大小改变时调用，重新计算所有粒子的目标位置
+ */
+function updateCupidPositions() {
+    if (!targetPositions) return;
+    
+    for(let i = 0; i < CONFIG.particleCount; i++) {
+        const t = ShapeGenerator.cupid(i, CONFIG.particleCount);
+        targetPositions[i*3] = t.x;
+        targetPositions[i*3+1] = t.y;
+        targetPositions[i*3+2] = t.z;
+    }
+}
+
+/**
+ * 处理窗口大小改变
+ */
+function handleResize() {
+    // 重新计算缩放因子
+    calculateScaleFactor();
+    
+    // 更新相机
+    camera.aspect = window.innerWidth / window.innerHeight;
+    const isMobile = window.innerWidth < 768 || (window.innerHeight / window.innerWidth > 1.5);
+    if (isMobile) {
+        camera.position.z = 35 / scaleFactor;
+    } else {
+        camera.position.z = 35;
+    }
+    camera.updateProjectionMatrix();
+    
+    // 更新渲染器
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // 重新计算 Cupid 形状的目标位置
+    updateCupidPositions();
+}
+
+// --- 动画循环 ---
+function animate() {
+	requestAnimationFrame(animate);
+	time += 0.01;
+
+		// 手势检测到后，先只展示 LOVE DETECTED，稍作停顿再开始粒子汇聚
+		if (isHeartGesture) {
+		    // 使用 time 作为简单的时间轴，超过延迟后才真正进入 Cupid 形态
+		    if (!isCupidActive && (time - gestureEnterTime >= CUPID_DELAY)) {
+		        isCupidActive = true;
+		        heartAppearTime = time; // 记录爱心出现的时间
+		    }
+		    
+		    // 爱心形成后，延迟跳转到主页面
+		    if (isCupidActive && !hasNavigated && (time - heartAppearTime >= NAVIGATION_DELAY)) {
+		        hasNavigated = true;
+		        navigateToMainPage();
+		    }
+		} else {
+		    isCupidActive = false;
+		}
+
+		// 记录当前帧 Cupid 状态
+		wasCupidActive = isCupidActive;
+
+	const positionsArray = particles.geometry.attributes.position.array;
+	
+	// 颜色平滑过渡：仅在真正进入 Cupid 形态后再变为粉色
+	const targetColor = isCupidActive ? CONFIG.colors.love : CONFIG.colors.chaos;
+	particles.material.color.lerp(targetColor, 0.05);
+
+	// 旋转场景
+	particles.rotation.y = Math.sin(time * 0.2) * 0.1;
+
+	for (let i = 0; i < CONFIG.particleCount; i++) {
+        const idx = i * 3;
+        let px = positionsArray[idx];
+        let py = positionsArray[idx+1];
+        let pz = positionsArray[idx+2];
+
+	    if (isCupidActive) {
+	        // --- 模式：汇聚成爱心 ---
+            const tx = targetPositions[idx];
+            const ty = targetPositions[idx+1];
+            const tz = targetPositions[idx+2];
+
+            // 强引力飞向目标
+            px += (tx - px) * CONFIG.formSpeed;
+            py += (ty - py) * CONFIG.formSpeed;
+            pz += (tz - pz) * CONFIG.formSpeed;
+
+            // 添加微小的抖动（让爱心看起来在闪烁/活着）
+            px += (Math.random() - 0.5) * 0.05;
+            py += (Math.random() - 0.5) * 0.05;
+            pz += (Math.random() - 0.5) * 0.05;
+
+        } else {
+            // --- 模式：混沌飞舞 ---
+            // 使用 Curl Noise 或 简单的正弦波噪点模拟布朗运动
+            const vx = velocities[i].x + Math.sin(py * 0.1 + time) * 0.02;
+            const vy = velocities[i].y + Math.cos(pz * 0.1 + time) * 0.02;
+            const vz = velocities[i].z + Math.sin(px * 0.1 + time) * 0.02;
+
+            px += vx;
+            py += vy;
+            pz += vz;
+
+            // 边界检查：飞太远就瞬移到另一边（无限空间错觉）
+            // 根据缩放因子动态调整边界
+            const boundaryX = 50 * scaleFactor;
+            const boundaryY = 30 * scaleFactor;
+            const boundaryZ = 30 * scaleFactor;
+            if (px > boundaryX) px = -boundaryX; if (px < -boundaryX) px = boundaryX;
+            if (py > boundaryY) py = -boundaryY; if (py < -boundaryY) py = boundaryY;
+            if (pz > boundaryZ) pz = -boundaryZ; if (pz < -boundaryZ) pz = boundaryZ;
+        }
+
+        positionsArray[idx] = px;
+        positionsArray[idx+1] = py;
+        positionsArray[idx+2] = pz;
+    }
+
+    particles.geometry.attributes.position.needsUpdate = true;
+    renderer.render(scene, camera);
+}
+
+// --- 长按交互逻辑 ---
+/**
+ * 处理按下/触摸开始事件
+ */
+function handleInteractionStart(event) {
+    event.preventDefault();
+    isPressHeld = true;
+    pressStartTime = Date.now();
+    
+    // 清除之前的定时器（如果存在）
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+    
+    // 设置长按定时器
+    longPressTimer = setTimeout(() => {
+        if (isPressHeld && !isHeartGesture) {
+            // 长按触发：启动爱心效果
+            isHeartGesture = true;
+            gestureEnterTime = time;
+            isCupidActive = false;
+            updateUI(true);
+        }
+    }, LONG_PRESS_DURATION * 1000);
+}
+
+/**
+ * 处理松开/触摸结束事件
+ */
+function handleInteractionEnd(event) {
+    event.preventDefault();
+    isPressHeld = false;
+    
+    // 清除长按定时器
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+    
+    // 如果已经触发爱心效果，不再重置（让爱心效果和跳转继续执行）
+    // 只有在未触发爱心效果时才重置状态
+    if (isHeartGesture && !hasNavigated) {
+        // 已经触发爱心效果，保持状态，继续执行跳转流程
+        return;
+    }
+    
+    // 如果还未触发爱心效果，松开则重置
+    if (!isHeartGesture) {
+        isCupidActive = false;
+        updateUI(false);
+    }
+}
+
+// --- 音频与 UI ---
+function updateUI(isLove) {
+    const msg = document.getElementById('heart-msg');
+    const heartsLayer = document.querySelector('.floating-hearts');
+    
+    if (isLove) {
+        msg.classList.add('show');
+        // 进入丘比特状态：启动前景漂浮小爱心
+        if (heartsLayer) heartsLayer.classList.add('active');
+    } else {
+        msg.classList.remove('show');
+        // 返回混沌：关闭前景漂浮小爱心
+        if (heartsLayer) heartsLayer.classList.remove('active');
+    }
+}
+
+/**
+ * 初始化应用
+ * 页面加载后自动启动
+ */
+function initApp() {
+    // 初始化音频并自动播放
+    audio = document.getElementById('bgm');
+    audio.volume = 0;
+    
+    // 尝试自动播放，如果失败则等待用户交互
+    audio.play().then(() => {
+        // 播放成功，开始淡入
+        fadeInAudio();
+    }).catch(e => {
+        console.log("Audio waiting for interaction, will play after first interaction");
+        // 如果自动播放失败，监听用户第一次交互后播放
+        const playAfterInteraction = () => {
+            audio.play().then(() => {
+                fadeInAudio();
+            }).catch(err => console.log("Audio play error:", err));
+            // 移除事件监听器，只执行一次
+            document.removeEventListener('click', playAfterInteraction);
+            document.removeEventListener('touchstart', playAfterInteraction);
+        };
+        document.addEventListener('click', playAfterInteraction, { once: true });
+        document.addEventListener('touchstart', playAfterInteraction, { once: true });
+    });
+
+    // 启动系统
+    initThree();
+    initLongPressInteraction();
+    animate();
+}
+
+// 页面加载完成后自动启动
+window.addEventListener('DOMContentLoaded', initApp);
+
+/**
+ * 初始化长按交互事件监听
+ * 支持鼠标长按（桌面端）和触摸长按（移动端）
+ */
+function initLongPressInteraction() {
+    const container = document.body;
+    
+    // 鼠标事件（桌面端）
+    container.addEventListener('mousedown', handleInteractionStart);
+    container.addEventListener('mouseup', handleInteractionEnd);
+    container.addEventListener('mouseleave', handleInteractionEnd); // 鼠标移出窗口时也结束
+    
+    // 触摸事件（移动端）
+    container.addEventListener('touchstart', handleInteractionStart, { passive: false });
+    container.addEventListener('touchend', handleInteractionEnd, { passive: false });
+    container.addEventListener('touchcancel', handleInteractionEnd, { passive: false }); // 触摸被取消时也结束
+}
+
+function fadeInAudio() {
+    if(!audio) return;
+    // 确保音频正在播放
+    if (audio.paused) {
+        audio.play().catch(err => console.log("Audio play error:", err));
+    }
+    // 淡入音量
+    let vol = audio.volume;
+    const interval = setInterval(() => {
+        if (vol < 0.6) {
+            vol += 0.02;
+            audio.volume = Math.min(vol, 0.6);
+        } else {
+            clearInterval(interval);
+        }
+    }, 100);
+}
+
+function fadeOutAudio() {
+    if(!audio) return;
+    let vol = audio.volume;
+    const interval = setInterval(() => {
+        if (vol > 0.05) {
+            vol -= 0.05;
+            audio.volume = Math.max(vol, 0);
+        } else {
+            audio.pause();
+            clearInterval(interval);
+        }
+    }, 100);
+}
+
+// 立即中断所有音频播放（用于手势松开时立刻静音）
+function stopAllAudioImmediate() {
+    try {
+        if (audio) {
+            audio.pause();
+            audio.currentTime = 0;
+        }
+    } catch (e) {
+        console.log('Audio stop error:', e);
+    }
+}
+
+/**
+ * 跳转到主页面（深夜陪伴.html）
+ * 添加淡出效果后跳转
+ */
+function navigateToMainPage() {
+    // 设置标记，表示是从入口页面跳转过来的
+    sessionStorage.setItem('fromEntryPage', 'true');
+    
+    // 淡出音频
+    fadeOutAudio();
+    
+    // 添加淡出动画到 body
+    document.body.classList.add('fade-out');
+    
+    // 延迟跳转，等待淡出动画完成
+    setTimeout(() => {
+        window.location.href = '深夜陪伴.html';
+    }, 1000); // 1秒淡出动画时间
+}
+
+</script>
+</body>
+</html>
+

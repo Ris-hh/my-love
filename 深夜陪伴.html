@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深夜陪伴</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+        /* 引入优设标题黑字体 */
+        @font-face {
+            font-family: '优设标题黑';
+            src: url('assets/fonts/优设标题黑.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        /* 应用字体到所有文字 */
+        body {
+            font-family: '优设标题黑', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.4; /* 缩小整体行高 */
+        }
+
+        @keyframes heartbeat {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        .heart-beat {
+            animation: heartbeat 1.2s ease-in-out infinite;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
+            }
+            50% {
+                filter: drop-shadow(0 0 25px rgba(255, 0, 0, 0.8));
+            }
+        }
+
+        .heart-glow {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        .glass-button {
+            /* 默认状态背景 */
+            background: rgba(30, 30, 30, 0.2);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1); /* 白色10%透明度边框 */
+            /* 默认状态投影 - 向下移动4像素 */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 取消流光效果 */
+        .glass-button::before {
+            display: none;
+        }
+
+        .glass-button:hover {
+            /* 悬停时增强渐变和辉光 - 蓝色系 */
+            background: linear-gradient(
+                135deg,
+                rgba(100, 150, 255, 0.25) 0%,
+                rgba(70, 130, 230, 0.2) 50%,
+                rgba(50, 100, 200, 0.25) 100%
+            );
+            border-color: #205BE5; /* 悬停时边框颜色 */
+            transform: translateY(-2px);
+            box-shadow: 
+                0 8px 25px rgba(100, 150, 255, 0.15),
+                0 4px 12px rgba(70, 130, 230, 0.12);
+        }
+
+        .glass-button:active {
+            transform: translateY(0);
+            box-shadow: 
+                0 2px 8px rgba(100, 150, 255, 0.1),
+                0 1px 4px rgba(70, 130, 230, 0.08);
+        }
+
+        /* 确保按钮内容在伪元素之上 */
+        .glass-button > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .night-mode {
+            background: linear-gradient(to bottom, #0a0d1a 0%, #15182e 100%);
+            min-height: 100vh;
+        }
+
+        .status-gold {
+            color: #d4af37;
+        }
+
+        .status-green-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            margin-left: 4px;
+        }
+
+        .quote-text {
+            font-style: italic;
+            color: #d4af37;
+        }
+
+        .goodnight-overlay {
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .exclusive-btn {
+            color: #d4af37;
+        }
+
+        #messageBox {
+            min-height: 3.5rem; /* 固定两行文字的高度 */
+            display: flex;
+            align-items: center; /* 垂直居中 */
+            justify-content: center; /* 水平居中 */
+        }
+
+        #messageText {
+            line-height: 1.4; /* 设置行高（缩小） */
+        }
+
+        #heartCanvas {
+            width: 300px;
+            height: 300px;
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+        }
+
+        @media (min-width: 768px) {
+            #heartCanvas {
+                width: 400px;
+                height: 400px;
+            }
+        }
+
+        /* 星星背景容器 - 银河效果 */
+        .stars-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+            /* 添加银河渐变背景 - 更柔和的渐变，无边界感 */
+            background: 
+                radial-gradient(ellipse 120% 70% at 50% 50%, rgba(100, 80, 150, 0.1) 0%, rgba(100, 80, 150, 0.05) 40%, transparent 100%),
+                radial-gradient(ellipse 100% 60% at 30% 40%, rgba(120, 100, 180, 0.06) 0%, rgba(120, 100, 180, 0.03) 50%, transparent 100%),
+                radial-gradient(ellipse 110% 65% at 70% 60%, rgba(90, 70, 140, 0.08) 0%, rgba(90, 70, 140, 0.04) 45%, transparent 100%);
+        }
+
+        /* 星星样式 - 银河效果 */
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 2px rgba(255, 255, 255, 0.6), 0 0 4px rgba(200, 180, 255, 0.3);
+            animation: twinkle ease-in-out infinite;
+        }
+
+        /* 闪烁动画 */
+        @keyframes twinkle {
+            0%, 100% {
+                opacity: 0.1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.6;
+                transform: scale(1.2);
+            }
+        }
+    </style>
+</head>
+<body class="night-mode">
+    <!-- 星星背景容器 -->
+    <div id="starsContainer" class="stars-container"></div>
+    
+    <!-- 主内容区域 -->
+    <div class="flex flex-col items-center justify-center px-4 py-6 min-h-screen relative z-10">
+        <!-- 状态显示 -->
+        <div class="text-center mb-0">
+            <div class="text-gray-400 text-sm uppercase tracking-wider mb-1">Sweet Dreams</div>
+            <div id="statusDay" class="status-gold text-2xl font-semibold mb-2">
+                Day 7 • Missing You
+            </div>
+            <div class="quote-text text-base mb-2">"Holding You Tight"</div>
+        </div>
+
+        <!-- 爱心区域 -->
+        <div class="mb-6 flex flex-col items-center">
+            <canvas id="heartCanvas"></canvas>
+        </div>
+
+        <!-- 消息显示区域 -->
+        <div 
+            id="messageBox" 
+            class="text-white text-lg md:text-xl text-center mb-8 max-w-sm px-4 hidden"
+        >
+            <p id="messageText" class="leading-normal"></p>
+        </div>
+
+        <!-- 互动按钮区域 - 2x2网格 -->
+        <div class="grid grid-cols-2 gap-3 mb-3 w-full max-w-sm">
+            <button 
+                id="hugBtn"
+                class="glass-button text-white px-2 py-4 rounded-xl flex flex-col items-center justify-center gap-0.5"
+            >
+                <img src="assets/img/baobao.png" alt="求抱抱" class="w-12 h-12 object-contain">
+                <span class="text-base">求抱抱</span>
+            </button>
+            <button 
+                id="kissBtn"
+                class="glass-button text-white px-2 py-4 rounded-xl flex flex-col items-center justify-center gap-0.5"
+            >
+                <img src="assets/img/qinqin.png" alt="亲亲我" class="w-12 h-12 object-contain">
+                <span class="text-base">亲亲我</span>
+            </button>
+            <button 
+                id="talkBtn"
+                class="glass-button text-white px-2 py-4 rounded-xl flex flex-col items-center justify-center gap-0.5"
+            >
+                <img src="assets/img/tingting.png" alt="想听说话" class="w-12 h-12 object-contain">
+                <span class="text-base">想听说话</span>
+            </button>
+            <button 
+                id="exclusiveBtn"
+                class="glass-button px-2 py-4 rounded-xl flex flex-col items-center justify-center gap-0.5"
+            >
+                <img src="assets/img/zhuanshu.png" alt="Day 7 专属" class="w-12 h-12 object-contain">
+                <span class="text-sm exclusive-btn font-semibold">Day 7 专属</span>
+            </button>
+        </div>
+
+        <!-- 哄我睡觉按钮 -->
+        <button 
+            id="goodnightBtn"
+            class="text-blue-400 text-lg font-light mt-4 flex items-center gap-2"
+        >
+            <span class="text-2xl">💤</span>
+            <span>哄我睡觉</span>
+        </button>
+    </div>
+
+    <!-- 晚安遮罩层 -->
+    <div 
+        id="goodnightOverlay" 
+        class="goodnight-overlay fixed inset-0 z-50 flex items-center justify-center hidden"
+    >
+        <div class="text-center px-6">
+            <div class="text-6xl mb-6 animate-pulse">🌙</div>
+            <p id="goodnightText" class="text-white text-3xl md:text-4xl font-light leading-normal"></p>
+        </div>
+    </div>
+
+    <!-- 音频资源 (使用与启动页面相同的浪漫风格循环音乐) -->
+    <audio id="bgm" loop>
+        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=romantic-piano-111583.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        /**
+         * 音频相关变量
+         */
+        let audio; // 背景循环 BGM
+
+        /**
+         * 音频淡入函数
+         */
+        function fadeInAudio() {
+            if(!audio) return;
+            // 确保音频正在播放
+            if (audio.paused) {
+                audio.play().catch(err => console.log("Audio play error:", err));
+            }
+            // 淡入音量
+            let vol = audio.volume;
+            const interval = setInterval(() => {
+                if (vol < 0.6) {
+                    vol += 0.02;
+                    audio.volume = Math.min(vol, 0.6);
+                } else {
+                    clearInterval(interval);
+                }
+            }, 100);
+        }
+
+        /**
+         * 音频淡出函数
+         */
+        function fadeOutAudio() {
+            if(!audio) return;
+            let vol = audio.volume;
+            const interval = setInterval(() => {
+                if (vol > 0.05) {
+                    vol -= 0.05;
+                    audio.volume = Math.max(vol, 0);
+                } else {
+                    audio.pause();
+                    clearInterval(interval);
+                }
+            }, 100);
+        }
+
+        /**
+         * 初始化音频播放
+         */
+        function initAudio() {
+            // 初始化音频并自动播放
+            audio = document.getElementById('bgm');
+            if (!audio) return;
+            
+            audio.volume = 0;
+            
+            // 尝试自动播放，如果失败则等待用户交互
+            audio.play().then(() => {
+                // 播放成功，开始淡入
+                fadeInAudio();
+            }).catch(e => {
+                console.log("Audio waiting for interaction, will play after first interaction");
+                // 如果自动播放失败，监听用户第一次交互后播放
+                const playAfterInteraction = () => {
+                    audio.play().then(() => {
+                        fadeInAudio();
+                    }).catch(err => console.log("Audio play error:", err));
+                    // 移除事件监听器，只执行一次
+                    document.removeEventListener('click', playAfterInteraction);
+                    document.removeEventListener('touchstart', playAfterInteraction);
+                };
+                document.addEventListener('click', playAfterInteraction, { once: true });
+                document.addEventListener('touchstart', playAfterInteraction, { once: true });
+            });
+        }
+
+        /**
+         * 甜蜜告白话语-点击爱心时随机显示
+         */
+        const sweetWords = [
+            "你是我生命中最美好的意外，遇见你是我最大的幸运。",
+            "每次想到你，我的心都会跳得更快，就像现在这样。",
+            "即使是在深夜，只要想到你，我就觉得整个世界都亮了。",
+            "你是我最珍贵的宝贝，我想把所有的温柔都给你。",
+            "和你在一起的每一秒，都是我生命中最幸福的时刻。",
+            "你知道吗？你笑起来的样子，比星星还要美。",
+            "我想和你一起看遍所有的日出日落，走过每一个春夏秋冬。",
+            "你是我心里最柔软的地方，也是我最坚强的理由。",
+            "无论多晚，无论多远，我都会在这里陪着你。",
+            "你的每一个小动作，每一个表情，都让我心动不已。",
+            "我想成为你的依靠，让你知道，你永远不是一个人。",
+            "和你在一起，时间总是过得特别快，也特别慢。",
+            "你是我最想保护的人，也是我最想珍惜的人。",
+            "即使全世界都安静了，我的心也会为你跳动。",
+            "我想把所有的温柔、所有的爱，都只给你一个人。",
+            "你是我生命中的光，照亮了我所有的黑暗。",
+            "和你在一起，我才知道什么是真正的幸福。",
+            "无论发生什么，我都会在你身边，永远不变。",
+            "你是我最想拥抱的人，也是我最想亲吻的人。",
+            "我爱你，比你能想象的还要多，还要深。",
+            "我的满心欢喜，都是因为你呀。",
+            "只要有你在，哪怕只是静静陪着，我就觉得无比安心。"
+        ];
+
+        /**
+         * 抱抱时的安抚话语
+         */
+        const hugMessages = [
+            "来，让我紧紧抱住你，把所有的温暖都给你。",
+            "抱抱～我会一直陪在你身边，你永远不是一个人。",
+            "让我用这个拥抱告诉你，你是我最珍贵的人。",
+            "抱紧你，把所有的不开心都赶走，只留下温暖。",
+            "这个拥抱里，有我所有的爱和温柔，都给你。",
+            "抱抱你，想让你知道，你是我最想保护的人。",
+            "让我用这个拥抱温暖你，把所有的爱都传递给你。",
+            "抱抱～无论什么时候，我的怀抱都为你敞开。",
+            "紧紧抱住你，想让你感受到我满满的安全感。",
+            "这个拥抱，是我能给你的最直接的温暖。",
+            "抱抱你，想告诉你，你永远是我最重要的人。",
+            "让我用这个拥抱，把所有的不安都赶走。",
+            "抱紧你，想让你知道，我会一直在这里。",
+            "抱抱～你的每一个拥抱，都是我最大的安慰。",
+            "让我用这个拥抱告诉你，你是我生命中最美好的存在。",
+            "抱紧你，想让你感受到我所有的爱和关怀。",
+            "抱抱你，无论发生什么，我都会陪在你身边。",
+            "让我用这个拥抱，把所有的温柔都给你。",
+            "抱紧你，想让你知道，你是我最想珍惜的人。",
+            "抱抱～这个拥抱里，有我所有的思念和爱意。",
+            "让我用这个拥抱告诉你，你是我生命中最重要的人。"
+        ];
+
+        /**
+         * 亲亲时的安抚话语
+         */
+        const kissMessages = [
+            "亲亲～你是我最想亲吻的人，永远都是。",
+            "这个吻里，有我所有的爱意和温柔。",
+            "亲亲你，希望你能感受到我满满的爱。",
+            "让我用这个吻告诉你，你是我生命中最重要的人。",
+            "亲亲～无论何时何地，我的心都属于你。",
+            "亲亲你，想让你知道，你是我最想亲吻的人。",
+            "这个吻，是我能给你的最甜蜜的礼物。",
+            "亲亲～让我用这个吻，把所有的爱都传递给你。",
+            "亲亲你，想让你感受到我满满的爱意。",
+            "让我用这个吻告诉你，你是我生命中最美好的存在。",
+            "亲亲～无论什么时候，我都想亲吻你。",
+            "这个吻里，有我所有的思念和爱意。",
+            "亲亲你，想让你知道，你是我最珍贵的人。",
+            "让我用这个吻，把所有的温柔都给你。",
+            "亲亲～你的每一个吻，都是我最大的幸福。",
+            "亲亲你，想让你感受到我所有的爱和关怀。",
+            "让我用这个吻，把我的心意都悄悄传递给你。",
+            "亲亲～这个吻，是我能给你的最直接的爱。",
+            "亲亲你，无论发生什么，我都会一直爱你。",
+            "让我用这个吻，把所有温柔和爱意都送给你。",
+            "亲亲～在我心里，你永远是最特别的那个人。"
+        ];
+
+        /**
+         * 想听说话时的话语
+         */
+        const talkMessages = [
+            "我想听你的声音，想听你说话，想听你的一切。",
+            "和我说说话吧，我想知道你今天过得怎么样。",
+            "我想听你分享你的故事，你的心情，你的想法。",
+            "和我说说话，让我知道你在想什么。",
+            "我想听你的声音，那是我最爱的声音。",
+            "和我说说话吧，我想知道你的每一个想法。",
+            "我想听你的声音，想听你分享你的一切。",
+            "和我说说话，让我知道你今天的心情。",
+            "我想听你说话，想听你分享你的故事。",
+            "和我说说话吧，我想听听你心里的话。",
+            "我想听你的声音，那是我最想听到的声音。",
+            "和我说说话，让我了解你此刻的感受。",
+            "我想听你分享你的心情，你的故事，你的一切。",
+            "和我说说话吧，我想知道你今天发生了什么有趣的事。",
+            "我想听你的声音，想听你分享你的日常。",
+            "和我说说话，让我知道你现在在想什么。",
+            "我想听你分享你的经历，你的感受，你的想法。",
+            "和我说说话吧，我想了解你今天的感受。",
+            "我想听你的声音，那是我最想听到的温柔。",
+            "和我说说话，让我知道你今天的心情如何。",
+            "我想听你说话，想听你分享你的一切。",
+            "只要是你的声音，哪怕只是碎碎念，我都愿意听很久很久。"
+        ];
+
+        /**
+         * Day 7 专属话语
+         */
+        const exclusiveMessages = [
+            "我对你的喜欢，正一天比一天认真、一天比一天深沉。",
+            "和你相处的每一段时光，都在悄悄加深我对你的爱意。",
+            "越了解你，越靠近你，就越确定你是我最想珍惜的人。",
+            "我的心动没有上限，遇见你之后，只会一天比一天更心动。",
+            "爱意在心底慢慢累积，每多一天，就多一分温柔与坚定。",
+            "我不想只爱你一阵子，我想把所有温柔都慢慢给你。",
+            "和你有关的每一个瞬间，都在让我变得更在意你。",
+            "我的满心欢喜，从遇见你的那天起，只增不减。",
+            "时间越久，我越能确定，你就是我最想守护的温柔。",
+            "我对你的偏爱，不会随着日子变淡，只会越来越浓烈。",
+            "每多陪你一天，就多一分想和你一直走下去的决心。",
+            "爱意不需要刻意强调，它在我心里，默默生长，越来越深。",
+            "你不用怀疑，我对你的真心，自始至终，只多不少。",
+            "和你在一起的时光，都在让我更加确信，未来一定要有你。",
+            "我把所有温柔与耐心都留给你，且只会越来越专一地对你。",
+            "心动是乍见之欢，对你的深爱，是久处不厌与日渐浓厚。",
+            "你不需要和任何人比较，在我这里，你自带全部的温柔与特别。",
+            "我对你的感情，不是一时兴起，而是日复一日的笃定与深情。",
+            "世界再热闹，我也只想把目光，慢慢都放在你身上。",
+            "往后的每一段时光，我都想更用心、更认真地去爱你。",
+            "爱不是终点，而是和你一起，一天比一天更相爱。"
+        ];
+
+        /**
+         * 晚安话语
+         */
+         const goodnightMessages = [
+            "晚安，愿今夜的风，都带着温柔，轻轻陪你入睡。",
+            "晚安啦，把一天的疲惫都放下，好好睡一觉吧。",
+            "夜深了，安心睡去，所有美好都会在梦里与你相遇。",
+            "晚安，愿你一夜好眠，醒来都是温柔与阳光。",
+            "早点休息，我把所有温柔都悄悄寄给你，伴你入梦。",
+            "晚安，卸下所有烦恼，今夜只做轻松甜美的梦。",
+            "夜深人静，愿你安安稳稳，睡得香甜，睡得安心。",
+            "晚安，好好照顾自己，安心入睡，明天依旧温暖。",
+            "夜色温柔，愿你被好梦包围，一觉醒来元气满满。",
+            "晚安，把心事轻轻放下，让疲惫都随夜色消散。",
+            "夜深啦，闭上眼静静休息，愿你一夜无梦到天明。",
+            "晚安，愿温柔与宁静，一直陪在你身边直到清晨。",
+            "早点睡吧，所有不开心都留在今天，梦里只剩美好。",
+            "晚安，愿星光为你盖好被子，晚风替我轻轻拥抱你。",
+            "今夜好好安睡，养足精神，迎接明天的温柔与光亮。",
+            "晚安，愿你睡得踏实，醒来时心情柔软，一切顺遂。",
+            "夜深了，安静入睡吧，我会一直在心里默默陪着你。",
+            "晚安，愿长夜温柔，梦境清甜，醒来皆是好心情。",
+            "放下忙碌与疲惫，安心入眠，给自己一个温柔的夜晚。",
+            "晚安，愿今夜平静无扰，明天醒来，依旧满心欢喜。",
+            "好好睡吧，夜晚交给好梦，清晨交给阳光，我交给思念。"
+        ];
+
+        /**
+         * DOM 元素引用
+         */
+        const heartCanvas = document.getElementById('heartCanvas');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const statusDay = document.getElementById('statusDay');
+        const hugBtn = document.getElementById('hugBtn');
+        const kissBtn = document.getElementById('kissBtn');
+        const talkBtn = document.getElementById('talkBtn');
+        const exclusiveBtn = document.getElementById('exclusiveBtn');
+        const goodnightBtn = document.getElementById('goodnightBtn');
+        const goodnightOverlay = document.getElementById('goodnightOverlay');
+        const goodnightText = document.getElementById('goodnightText');
+
+        /**
+         * Three.js 相关变量
+         */
+        let scene, camera, renderer, particles, particleSystem;
+        let heartScale = 1;
+        let heartbeatPhase = 0;
+        let originalPositions = null;
+        let clickSpreadPhase = 0; // 点击扩散动画相位
+        let isSpreading = false; // 是否正在扩散
+
+        /**
+         * 显示消息
+         * @param {string} message - 要显示的消息
+         */
+        function showMessage(message) {
+            messageText.textContent = message;
+            messageBox.classList.remove('hidden');
+            messageBox.classList.add('fade-in');
+        }
+
+        /**
+         * 隐藏消息
+         */
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+            messageBox.classList.remove('fade-in');
+        }
+
+        /**
+         * 从数组中随机选择一个元素
+         * @param {Array} array - 数组
+         * @returns {string} 随机元素
+         */
+        function getRandomItem(array) {
+            return array[Math.floor(Math.random() * array.length)];
+        }
+
+        /**
+         * 创建发光纹理
+         * @returns {THREE.Texture} 发光纹理
+         */
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const context = canvas.getContext('2d');
+            
+            // 创建径向渐变，中心最亮，边缘透明
+            const centerX = 64;
+            const centerY = 64;
+            const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 64);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 200, 200, 0.9)');
+            gradient.addColorStop(0.4, 'rgba(255, 150, 150, 0.6)');
+            gradient.addColorStop(0.6, 'rgba(255, 100, 100, 0.3)');
+            gradient.addColorStop(0.8, 'rgba(255, 50, 50, 0.1)');
+            gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 128, 128);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        /**
+         * 生成3D实心心形上的点
+         * @param {number} u - 参数 (0 到 2π)
+         * @param {number} v - 参数 (0 到 π)
+         * @param {number} r - 半径比例 (0 到 1)，用于填充内部
+         * @returns {Object} 包含 x, y, z 坐标的对象
+         */
+        function getHeart3DPoint(u, v, r = 1) {
+            // 使用改进的3D心形参数方程
+            // 心形在xy平面的投影
+            const t = u;
+            const x2d = 16 * Math.pow(Math.sin(t), 3);
+            const y2d = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+            
+            // 转换为3D，添加z轴深度
+            // v 控制从顶部到底部的深度
+            const zDepth = Math.cos(v) * 5; // z轴深度变化（增加厚度）
+            const radius = Math.sin(v); // 从中心到边缘的半径
+            
+            // 应用心形形状
+            const scale = 0.7;
+            const x = (x2d * radius * r) * scale;
+            const y = (y2d * radius * r) * scale;
+            const z = zDepth * r * scale;
+            
+            return { x, y, z };
+        }
+
+        /**
+         * 生成实心心形内部填充点
+         * @param {number} u - 参数 (0 到 2π)
+         * @param {number} v - 参数 (0 到 π)
+         * @param {number} r - 半径比例 (0 到 1)
+         * @returns {Object} 包含 x, y, z 坐标的对象
+         */
+        function getHeart3DFilledPoint(u, v, r) {
+            return getHeart3DPoint(u, v, r);
+        }
+
+        /**
+         * 初始化 Three.js 场景
+         */
+        function initThreeJS() {
+            const width = heartCanvas.clientWidth;
+            const height = heartCanvas.clientHeight;
+
+            // 创建场景
+            scene = new THREE.Scene();
+
+            // 创建相机 - 调整位置以更好地显示3D心形（拉近相机使心形更大）
+            camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(0, 0, 30);
+            camera.lookAt(0, 0, 0);
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({
+                canvas: heartCanvas,
+                alpha: true,
+                antialias: true
+            });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // 创建粒子几何体 - 从外到内密度逐渐减少
+            const particleCount = 15000;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            // 生成实心3D心形粒子位置，外层密度高，内层密度低，避免中心白色光带
+            let generatedCount = 0;
+            let attempts = 0;
+            const maxAttempts = particleCount * 15; // 增加尝试次数以过滤中心粒子
+            
+            while (generatedCount < particleCount && attempts < maxAttempts) {
+                attempts++;
+                
+                // 使用多个参数生成3D空间中的点
+                const u = Math.random() * Math.PI * 2; // 0 到 2π
+                const v = Math.random() * Math.PI; // 0 到 π
+                
+                // 使用更强的幂函数分布，大幅减少中心区域粒子
+                // 值越小，外层密度越高，中心区域粒子越少
+                const r = Math.pow(Math.random(), 0.3); // 0.3次方，进一步减少中心粒子
+                
+                const point = getHeart3DFilledPoint(u, v, r);
+                
+                // 计算距离中心的距离
+                const distanceToCenter = Math.sqrt(
+                    point.x * point.x + 
+                    point.y * point.y + 
+                    point.z * point.z
+                );
+                const maxDistance = 12; // 估算的最大距离
+                const normalizedDistance = Math.min(distanceToCenter / maxDistance, 1);
+                
+                // 过滤掉中心区域的粒子（normalizedDistance < 0.25），避免白色光带
+                if (normalizedDistance < 0.25) {
+                    // 中心区域：只有很小的概率生成粒子
+                    if (Math.random() > 0.15) { // 85%的中心区域粒子被过滤
+                        continue;
+                    }
+                }
+                
+                // 添加微小的随机偏移使粒子更自然
+                const offsetX = (Math.random() - 0.5) * 0.15;
+                const offsetY = (Math.random() - 0.5) * 0.15;
+                const offsetZ = (Math.random() - 0.5) * 0.15;
+
+                positions[generatedCount * 3] = point.x * 1.1 + offsetX;
+                positions[generatedCount * 3 + 1] = point.y * 1.1 + offsetY;
+                positions[generatedCount * 3 + 2] = point.z * 1.1 + offsetZ;
+
+                // 根据距离中心的距离设置亮度和颜色
+                // 中心区域大幅降低亮度，避免叠加后变成白色
+                let brightness;
+                let saturationFactor;
+                
+                if (normalizedDistance < 0.3) {
+                    // 中心区域：极低亮度和饱和度
+                    brightness = 0.2 + normalizedDistance * 0.3; // 0.2-0.29，非常暗
+                    saturationFactor = 0.3 + normalizedDistance * 0.2; // 0.3-0.35，极低饱和度
+                } else {
+                    // 外层区域：正常亮度和饱和度
+                    brightness = 0.5 + (normalizedDistance - 0.3) * (0.5 / 0.7); // 0.5-1.0
+                    saturationFactor = 0.6 + (normalizedDistance - 0.3) * (0.4 / 0.7); // 0.6-1.0
+                }
+                
+                // 设置颜色（保持红色，根据位置调整）
+                const baseRed = 0.8 + Math.random() * 0.2; // 红色通道：0.8-1.0
+                const baseGreen = 0.05 + Math.random() * 0.1; // 绿色通道：0.05-0.15（降低）
+                const baseBlue = 0.1 + Math.random() * 0.1; // 蓝色通道：0.1-0.2（降低）
+                
+                // 应用亮度和饱和度调整，中心区域极暗，避免叠加变白
+                colors[generatedCount * 3] = Math.min(baseRed * brightness * saturationFactor, 0.85); // 进一步限制最大值
+                colors[generatedCount * 3 + 1] = baseGreen * brightness * saturationFactor;
+                colors[generatedCount * 3 + 2] = baseBlue * brightness * saturationFactor;
+                
+                generatedCount++;
+            }
+            
+            // 如果生成的粒子数量不足，用外层粒子填充
+            if (generatedCount < particleCount) {
+                for (let i = generatedCount; i < particleCount; i++) {
+                    const u = Math.random() * Math.PI * 2;
+                    const v = Math.random() * Math.PI;
+                    const r = 0.5 + Math.random() * 0.5; // 只生成外层粒子（0.5-1.0）
+                    const point = getHeart3DFilledPoint(u, v, r);
+                    
+                    positions[i * 3] = point.x * 1.1;
+                    positions[i * 3 + 1] = point.y * 1.1;
+                    positions[i * 3 + 2] = point.z * 1.1;
+                    
+                    const brightness = 0.7 + Math.random() * 0.3; // 外层正常亮度
+                    const saturationFactor = 0.8 + Math.random() * 0.2; // 外层正常饱和度
+                    const baseRed = 0.85 + Math.random() * 0.15;
+                    const baseGreen = 0.1 + Math.random() * 0.1;
+                    const baseBlue = 0.15 + Math.random() * 0.1;
+                    
+                    colors[i * 3] = Math.min(baseRed * brightness * saturationFactor, 0.9);
+                    colors[i * 3 + 1] = baseGreen * brightness * saturationFactor;
+                    colors[i * 3 + 2] = baseBlue * brightness * saturationFactor;
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // 保存原始位置用于动画
+            originalPositions = new Float32Array(positions);
+
+            // 创建粒子材质 - 添加辉光发光效果，降低叠加强度避免白色高亮
+            const glowTexture = createGlowTexture();
+            const material = new THREE.PointsMaterial({
+                size: 0.8, // 增大粒子尺寸以增强发光感和可见度
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.6, // 降低透明度，减少叠加效果，避免中部变白
+                blending: THREE.AdditiveBlending, // 叠加混合模式产生辉光
+                depthWrite: false, // 关闭深度写入，增强发光效果
+                sizeAttenuation: true,
+                map: glowTexture, // 使用发光纹理
+                alphaTest: 0.01 // 透明度测试，优化性能
+            });
+
+            // 创建粒子系统
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            // 添加环境光 - 提高亮度，配合发光效果
+            const ambientLight = new THREE.AmbientLight(0xff0000, 0.4); // 提高强度，增强整体亮度
+            scene.add(ambientLight);
+
+            // 添加主光源 - 从上方照亮
+            const directionalLight = new THREE.DirectionalLight(0xff69b4, 0.6); // 提高强度
+            directionalLight.position.set(10, 20, 30);
+            scene.add(directionalLight);
+
+            // 添加点光源 - 从前方照亮
+            const pointLight1 = new THREE.PointLight(0xff69b4, 0.7, 100); // 提高强度
+            pointLight1.position.set(0, 0, 40);
+            scene.add(pointLight1);
+
+            // 添加侧光源 - 增强立体感
+            const pointLight2 = new THREE.PointLight(0xff4081, 0.5, 100); // 提高强度
+            pointLight2.position.set(-20, 10, 20);
+            scene.add(pointLight2);
+
+            // 开始动画循环
+            animate();
+        }
+
+        /**
+         * 动画循环
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 心跳动画 - 减弱忽远忽近的效果
+            heartbeatPhase += 0.02;
+            const heartbeatScale = 1 + Math.sin(heartbeatPhase) * 0.05;
+            particleSystem.scale.set(heartbeatScale, heartbeatScale, heartbeatScale);
+
+            // 微微向左上侧倾斜，自然左右上下摆动
+            const time = Date.now() * 0.001;
+            
+            // 基础向左上侧倾斜
+            const baseTiltX = -0.15; // 向上倾斜（X轴负方向）
+            const baseTiltY = -0.15; // 向左倾斜（Y轴负方向）
+            
+            // 自然的上下摆动（X轴，在倾斜基础上摆动）
+            const swingX = Math.sin(time * 0.3) * 0.12 + Math.sin(time * 0.5) * 0.05; // 叠加两个频率，更自然
+            
+            // 自然的左右摆动（Y轴，在倾斜基础上摆动）
+            const swingY = Math.cos(time * 0.25) * 0.1 + Math.cos(time * 0.4) * 0.04; // 叠加两个频率
+            
+            // 应用倾斜和摆动
+            particleSystem.rotation.x = baseTiltX + swingX; // 向上倾斜 + 上下摆动
+            particleSystem.rotation.y = baseTiltY + swingY; // 向左倾斜 + 左右摆动
+
+            // 更新粒子位置（轻微浮动效果，适合3D实心结构）
+            if (originalPositions) {
+                const positions = particleSystem.geometry.attributes.position.array;
+                const time = Date.now() * 0.001;
+                
+                // 处理点击扩散效果
+                if (isSpreading) {
+                    clickSpreadPhase += 0.05; // 扩散动画速度
+                    if (clickSpreadPhase >= 1) {
+                        clickSpreadPhase = 0;
+                        isSpreading = false;
+                    }
+                }
+                
+                // 扩散缓动函数（ease-out）
+                const spreadEase = isSpreading ? (1 - Math.pow(1 - clickSpreadPhase, 3)) : 0;
+                const spreadAmount = spreadEase * 1.5; // 扩散距离
+                
+                for (let i = 0; i < positions.length; i += 3) {
+                    const index = i / 3;
+                    
+                    // 计算粒子到中心的距离和方向
+                    const origX = originalPositions[i];
+                    const origY = originalPositions[i + 1];
+                    const origZ = originalPositions[i + 2];
+                    
+                    // 计算从中心到粒子的方向向量
+                    const distance = Math.sqrt(origX * origX + origY * origY + origZ * origZ);
+                    const dirX = distance > 0 ? origX / distance : 0;
+                    const dirY = distance > 0 ? origY / distance : 0;
+                    const dirZ = distance > 0 ? origZ / distance : 0;
+                    
+                    // 应用扩散效果
+                    const spreadX = dirX * spreadAmount;
+                    const spreadY = dirY * spreadAmount;
+                    const spreadZ = dirZ * spreadAmount;
+                    
+                    // 更微妙的浮动效果，保持实心感
+                    const floatX = Math.sin(time * 0.3 + index * 0.01) * 0.15;
+                    const floatY = Math.cos(time * 0.4 + index * 0.01) * 0.15;
+                    const floatZ = Math.sin(time * 0.5 + index * 0.02) * 0.2;
+                    
+                    positions[i] = origX + spreadX + floatX;
+                    positions[i + 1] = origY + spreadY + floatY;
+                    positions[i + 2] = origZ + spreadZ + floatZ;
+                }
+                
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+
+        /**
+         * 处理窗口大小变化
+         */
+        function handleResize() {
+            const width = heartCanvas.clientWidth;
+            const height = heartCanvas.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        /**
+         * 点击爱心事件处理
+         */
+        heartCanvas.addEventListener('click', () => {
+            const randomMessage = getRandomItem(sweetWords);
+            showMessage(randomMessage);
+            
+            // 触发粒子扩散效果
+            if (particleSystem && originalPositions) {
+                isSpreading = true;
+                clickSpreadPhase = 0;
+            }
+        });
+
+        /**
+         * 求抱抱按钮事件处理
+         */
+        hugBtn.addEventListener('click', () => {
+            const randomMessage = getRandomItem(hugMessages);
+            showMessage(randomMessage);
+        });
+
+        /**
+         * 亲亲按钮事件处理
+         */
+        kissBtn.addEventListener('click', () => {
+            const randomMessage = getRandomItem(kissMessages);
+            showMessage(randomMessage);
+        });
+
+        /**
+         * 想听说话按钮事件处理
+         */
+        talkBtn.addEventListener('click', () => {
+            const randomMessage = getRandomItem(talkMessages);
+            showMessage(randomMessage);
+        });
+
+        /**
+         * Day 7 专属按钮事件处理
+         */
+        exclusiveBtn.addEventListener('click', () => {
+            const randomMessage = getRandomItem(exclusiveMessages);
+            showMessage(randomMessage);
+        });
+
+        /**
+         * 晚安按钮事件处理
+         */
+        goodnightBtn.addEventListener('click', () => {
+            const randomMessage = getRandomItem(goodnightMessages);
+            goodnightText.textContent = randomMessage;
+            goodnightOverlay.classList.remove('hidden');
+            goodnightOverlay.classList.add('fade-in');
+            
+            // 点击遮罩层可以关闭晚安界面
+            const closeGoodnight = function() {
+                goodnightOverlay.classList.add('hidden');
+                goodnightOverlay.removeEventListener('click', closeGoodnight);
+            };
+            goodnightOverlay.addEventListener('click', closeGoodnight);
+        });
+
+        /**
+         * 创建闪烁的星星
+         */
+        /**
+         * 创建银河效果的星星背景
+         */
+        function createStars() {
+            const starsContainer = document.getElementById('starsContainer');
+            const starCount = 500; // 增加星星数量，形成银河效果
+            
+            // 银河中心线参数（从右上到左下的一条带状区域）
+            const galaxyCenterX = 0.5; // 中心X位置（50%）
+            const galaxyCenterY = 0.5; // 中心Y位置（50%）
+            const galaxyWidth = 0.6; // 银河带宽度（60%的屏幕宽度，微微缩小以减少边界感）
+            const galaxyAngle = 15; // 银河倾斜角度（度），从右上到左下，角度减小
+            const angleRad = (galaxyAngle * Math.PI) / 180; // 转换为弧度
+            
+            for (let i = 0; i < starCount; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                
+                // 生成位置，使星星更分散地分布在银河带中
+                let x, y, distanceFromCenter;
+                
+                // 使用权重分布，减少集中度，使星星更分散
+                const rand = Math.random();
+                if (rand < 0.55) {
+                    // 55%的星星在银河带内（降低集中度，更分散）
+                    // 沿银河带方向分布
+                    const t = Math.random(); // 0-1，沿银河带的位置
+                    // 增加偏移范围，使星星更分散
+                    const offset = (Math.random() - 0.5) * galaxyWidth * 1.2; // 增加偏移范围
+                    
+                    // 计算沿银河带的位置（从右上到左下），增加分布范围
+                    const centerX = galaxyCenterX - (t - 0.5) * 1.0; // 增加X方向分布范围
+                    const centerY = galaxyCenterY + (t - 0.5) * 0.8; // 增加Y方向分布范围
+                    
+                    // 应用垂直于银河带的偏移
+                    x = centerX + offset * Math.cos(angleRad + Math.PI / 2);
+                    y = centerY + offset * Math.sin(angleRad + Math.PI / 2);
+                    
+                    // 计算距离银河中心的距离
+                    distanceFromCenter = Math.abs(offset) / (galaxyWidth / 2);
+                } else {
+                    // 30%的星星随机分布（背景星星）
+                    x = Math.random();
+                    y = Math.random();
+                    // 计算到银河中心的距离
+                    const dx = x - galaxyCenterX;
+                    const dy = y - galaxyCenterY;
+                    const rotatedX = dx * Math.cos(-angleRad) - dy * Math.sin(-angleRad);
+                    distanceFromCenter = Math.abs(rotatedX) / (galaxyWidth / 2);
+                }
+                
+                // 允许星星超出屏幕边缘，形成更自然的分布（不限制边界）
+                // 只限制在合理范围内，避免过度超出
+                x = Math.max(-0.1, Math.min(1.1, x)); // 允许超出屏幕10%
+                y = Math.max(-0.1, Math.min(1.1, y)); // 允许超出屏幕10%
+                
+                star.style.left = x * 100 + '%';
+                star.style.top = y * 100 + '%';
+                
+                // 根据距离银河中心的距离调整大小和亮度
+                // 银河中心更亮更大，边缘更暗更小，使用更柔和的衰减，避免明显边界
+                // 使用平方根函数使过渡更平滑
+                const normalizedDist = Math.min(distanceFromCenter, 1.5); // 允许超出1.0，但限制在1.5
+                const galaxyBrightness = Math.max(0, 1 - Math.sqrt(normalizedDist) * 0.7); // 使用平方根使过渡更平滑
+                
+                // 随机大小，银河中心的星星更大
+                const baseSize = galaxyBrightness > 0.5 ? 
+                    Math.random() * 1.5 + 1.0 : // 银河中心：1.0-2.5px
+                    Math.random() * 0.8 + 0.4; // 边缘：0.4-1.2px
+                
+                star.style.width = baseSize + 'px';
+                star.style.height = baseSize + 'px';
+                
+                // 随机闪烁速度（1.5-4秒）
+                const duration = Math.random() * 2.5 + 1.5;
+                star.style.animationDuration = duration + 's';
+                
+                // 随机延迟开始时间
+                star.style.animationDelay = Math.random() * duration + 's';
+                
+                // 根据银河位置调整亮度
+                // 银河中心的星星更亮，边缘更暗
+                const baseOpacity = galaxyBrightness > 0.5 ?
+                    Math.random() * 0.3 + 0.5 : // 银河中心：0.5-0.8
+                    Math.random() * 0.2 + 0.2; // 边缘：0.2-0.4
+                
+                star.style.opacity = baseOpacity;
+                
+                // 银河中心的星星添加更亮的发光效果
+                if (galaxyBrightness > 0.6) {
+                    star.style.boxShadow = 
+                        `0 0 ${baseSize * 2}px rgba(255, 255, 255, 0.8), 
+                         0 0 ${baseSize * 4}px rgba(200, 180, 255, 0.4),
+                         0 0 ${baseSize * 6}px rgba(150, 130, 220, 0.2)`;
+                }
+                
+                starsContainer.appendChild(star);
+            }
+        }
+
+        /**
+         * 更新状态天数（根据当前星期）
+         */
+        function updateStatusDay() {
+            if (statusDay) {
+                const today = new Date();
+                const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
+                // 将周日(0)转换为7，其他保持不变，使Day 1对应周一
+                const day = dayOfWeek === 0 ? 7 : dayOfWeek;
+                statusDay.innerHTML = `Day ${day} • Missing You`;
+            }
+        }
+
+        /**
+         * 检查页面访问来源
+         * 如果不是从入口页面跳转过来的，则跳转回入口页面
+         */
+        function checkPageAccess() {
+            // 检查sessionStorage中是否有标记，表示是从入口页面跳转过来的
+            const fromEntryPage = sessionStorage.getItem('fromEntryPage');
+            
+            if (fromEntryPage !== 'true') {
+                // 如果不是从入口页面跳转过来的（直接访问或刷新），则跳转回入口页面
+                window.location.href = 'index.html';
+                return false; // 阻止后续初始化
+            }
+            
+            // 清除标记，以便下次刷新时能正确跳转
+            sessionStorage.removeItem('fromEntryPage');
+            return true; // 允许继续初始化
+        }
+
+        /**
+         * 页面加载完成后的初始化
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            // 检查页面访问来源，如果不是从入口页面跳转过来的，则跳转回入口页面
+            if (!checkPageAccess()) {
+                return; // 如果跳转了，就不执行后续初始化
+            }
+            
+            // 初始化音频播放
+            initAudio();
+            
+            // 更新状态天数
+            updateStatusDay();
+            
+            // 创建星星背景
+            createStars();
+            
+            // 初始化 Three.js
+            initThreeJS();
+            
+            // 监听窗口大小变化
+            window.addEventListener('resize', handleResize);
+            
+            // 初始化显示一条消息
+            setTimeout(() => {
+                showMessage("我一直在等你下班，每一秒都在等。");
+            }, 500);
+        });
+    </script>
+</body>
+</html>
