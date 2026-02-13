@@ -62,31 +62,6 @@
             min-height: calc(100vh + env(safe-area-inset-top) + env(safe-area-inset-bottom));
             z-index: 1;
         }
-        
-        /* iOS Safari 状态栏和底部输入栏背景覆盖 - 增强覆盖范围 */
-        body::before,
-        body::after {
-            content: '';
-            position: fixed;
-            left: 0;
-            right: 0;
-            background: linear-gradient(to bottom, #0a0d1a 0%, #15182e 100%);
-            background-color: #0a0d1a; /* 确保基础背景色 */
-            z-index: 9999;
-            pointer-events: none;
-        }
-        
-        body::before {
-            top: 0;
-            /* 增加高度以确保完全覆盖状态栏区域，包括可能的浏览器 UI */
-            height: max(env(safe-area-inset-top, 0px), 44px); /* 至少 44px 以覆盖状态栏 */
-        }
-        
-        body::after {
-            bottom: 0;
-            /* 增加高度以确保完全覆盖底部导航栏区域 */
-            height: max(env(safe-area-inset-bottom, 0px), 50px); /* 至少 50px 以覆盖底部导航栏 */
-        }
 
         /* 状态提示 UI */
         #ui-layer {
